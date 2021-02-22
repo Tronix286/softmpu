@@ -743,6 +743,7 @@ static void MPU401_Reset(void) {
 	mpu.condbuf.counter=0;
 	mpu.condbuf.type=T_OVERFLOW;
 	for (i=0;i<8;i++) {mpu.playbuf[i].type=T_OVERFLOW;mpu.playbuf[i].counter=0;}
+	cmsReset();
 }
 
 /* SOFTMPU: Enable/disable SB IRQ generation */

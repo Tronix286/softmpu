@@ -2,7 +2,7 @@
 @set CLEXE=C:\C600\BIN\CL.EXE
 @set MLEXE=C:\MASM611\BIN\ML.EXE
 @set H2INC=C:\MASM611\BIN\H2INC.EXE
-@set LINK=C:\MASM611\BINR\LINK.EXE
+@set LINK=C:\MASM611\BIN\LINK.EXE
 del softmpu.exe
 @cd src
 del *.obj

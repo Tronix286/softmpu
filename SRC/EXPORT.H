@@ -55,5 +55,7 @@ void MPU401_WriteCommand(Bitu val);
 Bitu MPU401_ReadData(void);
 void MPU401_WriteData(Bitu val);
 
+void _fastcall cmsReset(void);
+
 #define EXPORT_H
 #endif

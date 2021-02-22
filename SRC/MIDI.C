@@ -179,10 +179,35 @@ _asm
     {
 	inc  dx
 	xchg al,ah
+                        cmp     qemm.installed,1
+                        jne     REGUntrappedOUT
+			push 	ax
+			push	bx
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop	bx
+			pop	ax
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        REGUntrappedOUT:
 	out  dx,al
 	dec  dx
 	xchg al,ah
+                        cmp     qemm.installed,1
+                        jne     DATUntrappedOUT
+			push	ax
+			push	bx
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop	bx
+			pop	ax
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        DATUntrappedOUT:
 	out  dx,al
+
     }
 }
 
@@ -286,6 +311,16 @@ setFreq:
 voiceEnable:
 		mov   al,14h
 		inc   dx
+                        cmp     qemm.installed,1
+                        jne     VUntrappedOUT
+			push 	bx
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop	bx
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        VUntrappedOUT:
 		out   dx,al
 		dec   dx
 
@@ -300,6 +335,18 @@ skip_inc2:
 		mov   cl,bl
 		shl   ah,cl
 		or    al,ah
+                        cmp     qemm.installed,1
+                        jne     ChUntrappedOUT
+			push 	ax
+			push 	di
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop 	di
+			pop	ax
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        ChUntrappedOUT:
 		out   dx,al
 		mov   ChanEnableReg[di],al
     }
