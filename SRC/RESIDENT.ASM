@@ -36,6 +36,9 @@ MPUCmdPortAddr  DW              ?                       ; Set from cmdline
 CmdHandlerAddr  DW              OFFSET PortHandler
 
 SBPortAddr      DW              0                       ; Set from cmdline
+
+CMSPortAddr     DW              220h
+
 SBIRQ           DB              0                       ; Set from cmdline
 SerialPortAddr  DW              0                       ; Set from cmdline
 DelaySysex      DB              0                       ; Set from cmdline

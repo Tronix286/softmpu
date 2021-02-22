@@ -406,3 +406,37 @@ DetectSerial:   ; Find the BIOS address of the specified COM port
                 out             dx,al
                 pop             ax
 @@NoConfig:     retn
+
+
+DetectCMS:
+    ;-----------------------------
+    ;    detect Game Blaster     :
+    ;-----------------------------
+CMS_TEST_CODE            EQU         0C6H
+
+       MOV    DX,es:CMSPortAddr        ; get default i/o addx
+       ADD    DL,6                     ; write the test code to
+       MOV    AL,CMS_TEST_CODE         ;   output port 2x6H
+       OUT    DX,AL                    ; ...
+       SUB    AL,AL
+       ADD    DL,4                     ; read the data back from
+       OUT    DX,AL
+       IN     AL,DX                    ;   input port 2xAH
+       CMP    AL,CMS_TEST_CODE         ; the same data ?
+       JNE    CARD10                   ; no
+
+       SUB    DL,4                     ; to ensure, try inverse data
+       MOV    AL,NOT CMS_TEST_CODE     ; output port 2x6H
+       OUT    DX,AL                    ; ...
+       SUB    AL,AL
+       ADD    DL,4                     ; read the data back from
+       OUT    DX,AL
+       IN     AL,DX                    ;   input port 2xAH
+       CMP    AL,NOT CMS_TEST_CODE     ; the same data ?
+       JNE    CARD10                   ; no
+
+       mov ax,1
+       retn
+CARD10:
+       xor ax,ax
+       retn

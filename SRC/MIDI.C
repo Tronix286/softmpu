@@ -86,6 +86,43 @@ static Bit8u MIDI_evt_len[256] = {
   0,2,3,2, 0,0,1,0, 1,0,1,1, 1,0,1,0   // 0xf0
 };
 
+static Bit8u CMSFreqMap[128] = {
+		0,3,7,11,15,19,23,27,
+		31,34,38,41,45,48,51,55,
+		58,61,64,66,69,72,75,77,
+		80,83,86,88,91,94,96,99,
+		102,104,107,109,112,114,116,119,
+		121,123,125,128,130,132,134,136,
+		138,141,143,145,147,149,151,153,
+		155,157,159,161,162,164,166,168,
+		170,172,174,175,177,179,181,182,
+		184,186,188,189,191,193,194,196,
+		197,199,200,202,203,205,206,208,
+		209,210,212,213,214,216,217,218,
+		219,221,222,223,225,226,227,228,
+		229,231,232,233,234,235,236,237,
+		239,240,241,242,243,244,245,246,
+		247,249,250,251,252,253,254,255
+	};
+
+// Volume
+static Bit8u atten[128] = {
+                 0,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,
+                 3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,
+                 5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,
+                 7,7,7,7,7,7,7,7,8,8,8,8,8,8,8,8,
+                 9,9,9,9,9,9,9,9,10,10,10,10,10,10,10,10,
+                 11,11,11,11,11,11,11,11,12,12,12,12,12,12,12,12,
+                 13,13,13,13,13,13,13,13,14,14,14,14,14,14,14,14,
+        	 15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,
+        };
+        	 
+// Logic channel - first chip/second chip
+static Bit8u ChanReg[15] =  {000,001,002,003,004,005,000,001,002,003,004,005};
+
+// Set octave command
+static Bit8u OctavReg[15] = {0x10,0x10,0x11,0x11,0x12,0x12,0x10,0x10,0x11,0x11,0x12,0x12};
+
 /* SOFTMPU: Note tracking for RA-50 */
 typedef struct {
         Bit8u used;
@@ -98,6 +135,7 @@ channel tracked_channels[MAX_TRACKED_CHANNELS];
 static struct {
 	Bitu mpuport;
         Bitu sbport;
+	Bitu cmsport;
         Bitu serialport;
 	Bitu status;
 	Bitu cmd_len;
@@ -116,6 +154,10 @@ static struct {
 	/*MidiHandler * handler;*/ /* SOFTMPU */
 } midi;
 
+Bitu CmsOctaveStore[11];
+
+Bit8u ChanEnableReg[2] = {0,0};
+
 /* SOFTMPU: Sysex delay is decremented from PIC_Update */
 Bitu MIDI_sysex_delay;
 
@@ -124,6 +166,173 @@ OutputMode MIDI_output_mode;
 
 /* SOFTMPU: Initialised in mpu401.c */
 extern QEMMInfo qemm;
+
+void _fastcall cmsWrite(void)
+{
+/*
+	parameters
+	dx = port base+offset
+	ah = register
+	al = data
+*/
+_asm
+    {
+	inc  dx
+	xchg al,ah
+	out  dx,al
+	dec  dx
+	xchg al,ah
+	out  dx,al
+    }
+}
+
+void _fastcall cmsNull(void)
+{
+/*
+	parameters
+	dx = port offset to null
+*/
+_asm
+    {
+	add   dx,220h // FIXME! CMSPortAddr
+	mov   cx,20h
+	xor   ax,ax
+loop_nul:           // null all 20 registers 
+	call  cmsWrite
+	inc   ah
+	loop  loop_nul
+
+	mov   ax,1C02h // reset chip 
+	call  cmsWrite
+
+	mov   ax,1C01h // enable this chip 
+	call  cmsWrite
+    }
+}
+
+void _fastcall cmsReset(void)
+{
+_asm
+    {
+	mov  dx,0
+	call cmsNull
+	mov  dx,2
+	call cmsNull
+    }
+}
+
+void cmsSound(Bit8u voice,Bit8u freq,Bit8u octave,Bit8u amplitudeLeft,Bit8u amplitudeRight)
+{
+_asm
+   {
+		mov   bl,voice
+		
+		mov   dx,220h	// FIXME !!!
+		cmp   bl,06h		; check channel num > 5?
+		jl    setOctave	; yes - set port = port + 2
+		add   dx,2
+setOctave:
+		mov   bl,ChanReg[bx]	; bx = true channel (0 - 5)
+		mov   ah,OctavReg[bx]   ; ah = Set octave command
+;
+;	ah now = register
+;		0,1,6,7=$10
+;		2,3,8,9=$11
+;		4,5,10,11=$12
+;
+;	CMS octave regs are write only, so we have to track
+;	the values in adjoining voices manually
+
+		mov   al,ah
+		xor   ah,ah		; ax = set octave cmd (10h - 12h)
+		mov   di,ax		; di = ax
+		sub   di,010h		; di = octave cmd - 10h (0..2 index)
+		mov   cl,voice
+		cmp   cl,06h
+                jl    skip_inc
+		add   di,3
+skip_inc:
+		mov   ah,al		; set ah back to octave cmd
+
+		mov   al,byte ptr CmsOctaveStore[di]
+		mov   bh,octave
+		test  bl,01h
+		jnz   shiftOctave
+		and   al,0F0h
+		jmp   outOctave
+shiftOctave:
+		and   al,0Fh
+		mov   cl,4
+		shl   bh,cl
+outOctave:
+		or    al,bh
+		mov   byte ptr CmsOctaveStore[di],al
+		call cmsWrite		; set octave to CMS
+setAmp:
+		mov   al,byte ptr amplitudeLeft
+		mov   ah,byte ptr amplitudeRight
+		;and   al,0Fh
+		mov   cl,4
+		shl   ah,cl
+		or    al,ah
+		mov   ah,bl
+		call cmsWrite
+setFreq:
+		mov   al,byte ptr freq
+		or    ah,08h
+
+
+		call cmsWrite
+voiceEnable:
+		mov   al,14h
+		inc   dx
+		out   dx,al
+		dec   dx
+
+		xor   di,di
+		mov   cl,voice
+		cmp   cl,06h
+                jl    skip_inc2
+		inc   di
+skip_inc2:
+		mov   al,ChanEnableReg[di]
+		mov   ah,01h
+		mov   cl,bl
+		shl   ah,cl
+		or    al,ah
+		out   dx,al
+		mov   ChanEnableReg[di],al
+    }
+}
+
+void cmsFreq(Bit8u iChannel,Bitu iFreq,Bit8u iLevel)
+{
+	Bit8u outOctave;
+	Bitu outFreq;
+	if ((iFreq<32) || (iFreq>7823) || (iLevel=0))
+            {
+		cmsSound(iChannel,0,0,0,0);
+            }
+	    else
+               {
+			outOctave=4;
+			outFreq=iFreq;
+			while (outFreq<489) {
+				outFreq=outFreq*2;
+				outOctave--;
+			}
+			while (outFreq>977) {
+				outFreq=outFreq / 2;
+				outOctave++;
+			}
+			cmsSound(					
+					iChannel,
+					CMSFreqMap[((outFreq-489)*128) / 489],
+					outOctave,
+					iLevel,iLevel
+				);
+		}
+}
 
 static void PlayMsg_SBMIDI(Bit8u* msg,Bitu len)
 {
@@ -243,6 +452,71 @@ static void PlayMsg_Serial(Bit8u* msg,Bitu len)
 	}
 };
 
+
+static void PlayMsg_CMS(Bit8u* msg,Bitu len)
+{
+  Bit8u noteAdr[] = {5, 32, 60, 85, 110, 132, 153, 173, 192, 210, 227, 243}; // The 12 note-within-an-octave values for the SAA1099, starting at B
+  Bit8u command = msg[0];
+  Bit8u commandMSB  = command & 0xF0;
+  Bit8u midiChannel = command & 0x0F;
+  Bit8u octave;
+  Bit8u noteVal;
+  
+  if (commandMSB == 0x80) //Note off
+  {
+    Bit8u note = msg[1];
+    //getSerialByte(); //discard 3rd byte
+    //stopNote(note, midiChannel);
+    cmsSound(midiChannel,0,0,0,0);
+  }
+  else if (commandMSB == 0x90) //Note on
+  {
+    Bit8u note = msg[1];
+    Bit8u velo = msg[2];
+    
+    if (velo != 0)
+    {
+	note = note+1;
+
+	octave = (note / 12) - 1; //Some fancy math to get the correct octave
+  	noteVal = note - ((octave + 1) * 12); //More fancy math to get the correct note
+
+	cmsSound(midiChannel,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
+	
+      //cmsFreq(midiChannel,(440 / 32) * pow(2, ((note - 9) / 12)),atten[velo]);
+    }
+    else if (velo == 0)
+      cmsSound(midiChannel,0,0,0,0);
+      //stopNote(note, midiChannel);
+  }
+  else if (commandMSB == 0xA0) // Key pressure
+  {
+    //getSerialByte();
+    //getSerialByte();
+  }
+  else if (commandMSB == 0xB0) // Control change
+  {
+    Bit8u controller = msg[1];
+    Bit8u value = msg[2];
+    
+    //if (controller == 0x01) setDetune(value);
+    //if (controller == 0x07) setChannelVolume(value, midiChannel);
+  }
+  else if (commandMSB == 0xC0) // Program change
+  {
+    //byte program = getSerialByte();
+  }
+  else if (commandMSB == 0xD0) // Channel pressure
+  {
+    //byte pressure = getSerialByte();
+  }
+  else if (commandMSB == 0xE0) // Pitch bend
+  {
+    //byte pitchBendLSB = getSerialByte();
+    //byte pitchBendMSB = getSerialByte();
+  }
+}
+
 static void PlayMsg(Bit8u* msg,Bitu len)
 {
         switch (MIDI_output_mode)
@@ -296,6 +570,8 @@ static void PlayMsg(Bit8u* msg,Bitu len)
                 return PlayMsg_SBMIDI(msg,len);
         case M_SERIAL:
                 return PlayMsg_Serial(msg,len);
+	case M_CMS:
+                return PlayMsg_CMS(msg,len);
         default:
                 break;
         }
@@ -477,10 +753,12 @@ void MIDI_Init(Bitu mpuport,Bitu sbport,Bitu serialport,OutputMode outputmode,bo
         MIDI_output_mode=outputmode;
 
         /* SOFTMPU: Display welcome message on MT-32 */
-        for (i=0;i<30;i++)
-        {
-                MIDI_RawOutByte(MIDI_welcome_msg[i]);
-        }
+//        for (i=0;i<30;i++)
+//        {
+//                MIDI_RawOutByte(MIDI_welcome_msg[i]);
+//        }
+
+	cmsReset();
 
         /* SOFTMPU: Init note tracking */
         for (i=0;i<MAX_TRACKED_CHANNELS;i++)

@@ -36,7 +36,7 @@ typedef unsigned int Bitu;
 
 typedef enum bool {false = 0,true = 1} bool;
 typedef enum EventID {MPU_EVENT,RESET_DONE,EOI_HANDLER,NUM_EVENTS} EventID;
-typedef enum OutputMode {M_MPU401,M_SBMIDI,M_SERIAL} OutputMode;
+typedef enum OutputMode {M_MPU401,M_SBMIDI,M_SERIAL,M_CMS} OutputMode;
 
 /* SOFTMPU: QEMM interface parameters */
 typedef struct {

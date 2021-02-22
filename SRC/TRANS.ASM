@@ -77,6 +77,12 @@ Init:           ; Ensure ds=cs
                 je              @@EnableSBMIDI
                 cmp             eax,'mbs:'
                 je              @@EnableSBMIDI
+
+                cmp             eax,'SMC:'
+                je              @@EnableCMS
+                cmp             eax,'smc:'
+                je              @@EnableCMS
+
 		cmp             eax,'LED/'              ; Check for delay switch
 		je              @@EnableDelay
 		cmp             eax,'led/'
@@ -90,6 +96,8 @@ Init:           ; Ensure ds=cs
 @@EnableDelay:  mov             es:DelaySysex,1         ; Enable sysex delays
 		jmp             @@NextParam
 @@EnableSBMIDI: mov             es:OutMode,M_SBMIDI     ; Enable SB-MIDI mode
+                jmp             @@NextParam
+@@EnableCMS:    mov             es:OutMode,M_CMS        ; Enable CMS mode
                 jmp             @@NextParam
 @@MPUBaseParam: cmp             cx,7                    ; Command plus 3-digit port
 		jl              @@NextParam             ; Not enough chars left

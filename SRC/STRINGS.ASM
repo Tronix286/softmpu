@@ -27,17 +27,18 @@ Header          DB              0DAh
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
-                DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
+                DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0BFh,0Dh,0Ah
-                DB              0B3h,'SoftMPU 1.91 ',0FEh,' Software MPU-401 Emulator',0B3h,0Dh,0Ah
-                DB              0B3h,'                                        ',0B3h,0Dh,0Ah
-                DB              0B3h,'Copyright (C) 2013-2014  bjt, elianda   ',0B3h,0Dh,0Ah
-                DB              0B3h,'Copyright (C) 2002-2013  The DOSBox Team',0B3h,0Dh,0Ah
+                DB              0B3h,'SoftMPU 1.91.G ',0FEh,' Software MPU-401 Emulator',0B3h,0Dh,0Ah
+                DB              0B3h,'                                          ',0B3h,0Dh,0Ah
+                DB              0B3h,'Copyright (C) 2021 Tronix (GB/CMS ver)    ',0B3h,0Dh,0Ah
+                DB              0B3h,'Copyright (C) 2013-2014  bjt, elianda     ',0B3h,0Dh,0Ah
+                DB              0B3h,'Copyright (C) 2002-2013  The DOSBox Team  ',0B3h,0Dh,0Ah
                 DB              0C0h
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
-                DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
+                DB              0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h,0C4h
                 DB              0C4h,0D9h,0Dh,0Ah,'$'
 NoEMM           DB              '! Error: EMM386 4.46+ or QEMM 7.03+ not detected',0Dh,0Ah,'$'
 EMMError        DB              '! Error: Port trap failed. Please submit a bug report',0Dh,0Ah,'$'
@@ -77,6 +78,7 @@ HelpText        DB              'Usage: SOFTMPU /MPU:nnn [/SB:nnn /IRQ:nn] [/OUT
                 DB              '  /OUTPUT:     Use alternate output mode',0Dh,0Ah
                 DB              '  outputs        SBMIDI  Sound Blaster MIDI',0Dh,0Ah
                 DB              '                 COMn    Serial interface (1-4)',0Dh,0Ah
+		DB		'                 CMS     GameBlaster/CMS',0Dh,0Ah
                 DB              '  /DELAYSYSEX  Prevent Rev.0 MT-32 buffer overflow',0Dh,0Ah
                 DB              '  /RA50        Simulate "All Notes Off" for Roland RA-50',0Dh,0Ah,'$'
 EMMDevice       DB              'EMMXXXX0',00h
