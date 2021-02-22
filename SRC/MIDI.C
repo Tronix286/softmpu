@@ -246,10 +246,35 @@ _asm
     }
 }
 
+void cmsSetVolume(Bit8u voice,Bit8u amplitudeLeft,Bit8u amplitudeRight)
+{
+_asm
+   {
+		xor   bh,bh
+		mov   bl,voice
+		
+		mov   dx,220h	// FIXME !!!
+		cmp   bl,06h		; check channel num > 5?
+		jl    setVol	; yes - set port = port + 2
+		add   dx,2
+setVol:
+		mov   bl,ChanReg[bx]	; bx = true channel (0 - 5)
+		mov   al,byte ptr amplitudeLeft
+		mov   ah,byte ptr amplitudeRight
+		;and   al,0Fh
+		mov   cl,4
+		shl   ah,cl
+		or    al,ah
+		mov   ah,bl
+		call cmsWrite
+   }
+}
+
 void cmsSound(Bit8u voice,Bit8u freq,Bit8u octave,Bit8u amplitudeLeft,Bit8u amplitudeRight)
 {
 _asm
    {
+		xor   bh,bh
 		mov   bl,voice
 		
 		mov   dx,220h	// FIXME !!!
@@ -547,7 +572,7 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     Bit8u value = msg[2];
     
     //if (controller == 0x01) setDetune(value);
-    //if (controller == 0x07) setChannelVolume(value, midiChannel);
+    if (controller == 0x07) cmsSetVolume(midiChannel,value,value);
   }
   else if (commandMSB == 0xC0) // Program change
   {
