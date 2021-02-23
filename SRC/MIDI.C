@@ -59,6 +59,8 @@ typedef int Bits;
 #define MAX_TRACKED_CHANNELS 16
 #define MAX_TRACKED_NOTES 8
 
+#define MAX_CMS_CHANNELS 15
+
 static char* MIDI_welcome_msg = "\xf0\x41\x10\x16\x12\x20\x00\x00    SoftMPU v1.9    \x24\xf7"; /* SOFTMPU */
 
 static Bit8u MIDI_note_off[3] = { 0x80,0x00,0x00 }; /* SOFTMPU */
@@ -154,6 +156,14 @@ static struct {
 	/*MidiHandler * handler;*/ /* SOFTMPU */
 } midi;
 
+typedef struct {
+        Bit8u enabled;
+        Bit8u note;
+        Bit8u volume;
+} mid_channel;
+
+mid_channel cms_synth[MAX_CMS_CHANNELS];	// CMS synth
+
 Bitu CmsOctaveStore[11];
 
 Bit8u ChanEnableReg[2] = {0,0};
@@ -237,6 +247,7 @@ loop_nul:           // null all 20 registers
 
 void _fastcall cmsReset(void)
 {
+   Bit8u i;
 _asm
     {
 	mov  dx,0
@@ -244,7 +255,72 @@ _asm
 	mov  dx,2
 	call cmsNull
     }
+	for (i=0;i<11;i++)CmsOctaveStore[i]=0;
+	ChanEnableReg[0]=0;
+	ChanEnableReg[1]=0;
+        for (i=0;i<MAX_CMS_CHANNELS;i++)
+        {
+                cms_synth[i].enabled=0;
+                cms_synth[i].note=0;
+                cms_synth[i].volume=0;
+        }
 }
+
+void cmsNoteOff(Bit8u voice)
+{
+_asm
+   {
+		xor   bh,bh
+		mov   bl,voice
+
+		mov   dx,220h	// FIXME !!!
+
+		mov   bl,ChanReg[bx]	; bl = true channel (0 - 5)
+
+		xor   di,di
+		mov   cl,voice
+		cmp   cl,06h
+                jl    skip_inc
+		inc   di
+                add   dx,2
+skip_inc:
+		mov   al,14h
+		inc   dx
+                        cmp     qemm.installed,1
+                        jne     VRegUntrappedOUT
+			push 	bx
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop	bx
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        VRegUntrappedOUT:
+		out   dx,al
+		dec   dx
+
+		mov   al,ChanEnableReg[di]
+		mov   ah,01h
+		mov   cl,bl
+		shl   ah,cl
+		not   ah
+		and   al,ah		; al = voice enable reg
+
+                	cmp     qemm.installed,1
+                        jne     ChUntrappedOUT
+			push ax
+                        mov     bl,al                   ; bl = value
+                        mov     ax,01A01h               ; QPI_UntrappedIOWrite
+                        call    qemm.qpi_entry
+			pop ax
+                        _emit   0A8h                    ; Emit test al,(next opcode byte)
+                                                        ; Effectively skips next instruction
+        ChUntrappedOUT:
+		out   dx,al
+		mov   ChanEnableReg[di],al
+    }
+}
+
 
 void cmsSetVolume(Bit8u voice,Bit8u amplitudeLeft,Bit8u amplitudeRight)
 {
@@ -362,13 +438,11 @@ skip_inc2:
 		or    al,ah
                         cmp     qemm.installed,1
                         jne     ChUntrappedOUT
-			push 	ax
-			push 	di
+			push ax
                         mov     bl,al                   ; bl = value
                         mov     ax,01A01h               ; QPI_UntrappedIOWrite
                         call    qemm.qpi_entry
-			pop 	di
-			pop	ax
+			pop ax
                         _emit   0A8h                    ; Emit test al,(next opcode byte)
                                                         ; Effectively skips next instruction
         ChUntrappedOUT:
@@ -377,6 +451,7 @@ skip_inc2:
     }
 }
 
+/*
 void cmsFreq(Bit8u iChannel,Bitu iFreq,Bit8u iLevel)
 {
 	Bit8u outOctave;
@@ -406,6 +481,7 @@ void cmsFreq(Bit8u iChannel,Bitu iFreq,Bit8u iLevel)
 		}
 }
 
+*/
 static void PlayMsg_SBMIDI(Bit8u* msg,Bitu len)
 {
         /* Output a MIDI message to the hardware using SB-MIDI */
@@ -533,13 +609,15 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
   Bit8u midiChannel = command & 0x0F;
   Bit8u octave;
   Bit8u noteVal;
+  Bit8u i;
   
   if (commandMSB == 0x80) //Note off
   {
     Bit8u note = msg[1];
-    //getSerialByte(); //discard 3rd byte
-    //stopNote(note, midiChannel);
-    cmsSound(midiChannel,0,0,0,0);
+    //cmsSound(midiChannel,0,0,0,0);
+    cmsNoteOff(midiChannel);
+    cms_synth[midiChannel].enabled = 0;
+
   }
   else if (commandMSB == 0x90) //Note on
   {
@@ -554,12 +632,18 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
   	noteVal = note - ((octave + 1) * 12); //More fancy math to get the correct note
 
 	cmsSound(midiChannel,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
+
+	cms_synth[midiChannel].enabled = 1;
+	cms_synth[midiChannel].note = note-1;
+	cms_synth[midiChannel].volume = velo;
 	
       //cmsFreq(midiChannel,(440 / 32) * pow(2, ((note - 9) / 12)),atten[velo]);
     }
     else if (velo == 0)
-      cmsSound(midiChannel,0,0,0,0);
-      //stopNote(note, midiChannel);
+	{
+    		cmsNoteOff(midiChannel);
+		cms_synth[midiChannel].enabled = 0;
+	}
   }
   else if (commandMSB == 0xA0) // Key pressure
   {
@@ -572,7 +656,11 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     Bit8u value = msg[2];
     
     //if (controller == 0x01) setDetune(value);
-    if (controller == 0x07) cmsSetVolume(midiChannel,value,value);
+    if (controller == 0x07) 
+	{
+		cmsSetVolume(midiChannel,atten[value],atten[value]);
+		cms_synth[midiChannel].volume = value;
+	}
   }
   else if (commandMSB == 0xC0) // Program change
   {
@@ -587,6 +675,25 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     //byte pitchBendLSB = getSerialByte();
     //byte pitchBendMSB = getSerialByte();
   }
+  
+/*
+  for (i=0;i<MAX_CMS_CHANNELS;i++) 
+    if (cms_synth[i].enabled != 0)
+	{
+		noteVal = cms_synth[i].volume-1;
+		if (noteVal != 0)
+			{
+				cmsSetVolume(i,atten[noteVal],atten[noteVal]);
+				cms_synth[i].volume = noteVal;
+			}
+		else
+			{
+    				cmsNoteOff(i);
+				cms_synth[i].volume = 0;
+				cms_synth[i].enabled = 0;
+			}
+	}
+*/
 }
 
 static void PlayMsg(Bit8u* msg,Bitu len)

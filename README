@@ -1,3 +1,16 @@
+Creative Music System / Game blaster support
+version (C) Tronix 2021
+
+Used piece of software codes from third-party peoples, eg:
+- DEATHSHADOW'S Paku-Paku game by Jason M. Knight
+- SAATunes v 1.04 lib by Bobcatmodder Jacob Field
+- Arduino YM2149 MIDI Synth by yukimizake
+
+Usage:
+
+softmpu.exe /mpu:330 /output:cms
+
+Original SoftMPU readme:
 ----------------------------------------
 SoftMPU 1.91 - Software MPU-401 Emulator
 ----------------------------------------
