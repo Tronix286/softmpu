@@ -88,6 +88,7 @@ static Bit8u MIDI_evt_len[256] = {
   0,2,3,2, 0,0,1,0, 1,0,1,1, 1,0,1,0   // 0xf0
 };
 
+/*
 static Bit8u CMSFreqMap[128] = {
 		0,3,7,11,15,19,23,27,
 		31,34,38,41,45,48,51,55,
@@ -106,6 +107,7 @@ static Bit8u CMSFreqMap[128] = {
 		239,240,241,242,243,244,245,246,
 		247,249,250,251,252,253,254,255
 	};
+*/
 
 // Volume
 static Bit8u atten[128] = {
@@ -157,7 +159,6 @@ static struct {
 } midi;
 
 typedef struct {
-        Bit8u enabled;
         Bit8u note;
         Bit8u volume;
 } mid_channel;
@@ -242,6 +243,7 @@ loop_nul:           // null all 20 registers
 
 	mov   ax,1C01h // enable this chip 
 	call  cmsWrite
+
     }
 }
 
@@ -260,7 +262,6 @@ _asm
 	ChanEnableReg[1]=0;
         for (i=0;i<MAX_CMS_CHANNELS;i++)
         {
-                cms_synth[i].enabled=0;
                 cms_synth[i].note=0;
                 cms_synth[i].volume=0;
         }
@@ -610,14 +611,32 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
   Bit8u octave;
   Bit8u noteVal;
   Bit8u i;
+  Bit8u j;
+  Bit8u voice;
   
   if (commandMSB == 0x80) //Note off
   {
     Bit8u note = msg[1];
-    //cmsSound(midiChannel,0,0,0,0);
-    cmsNoteOff(midiChannel);
-    cms_synth[midiChannel].enabled = 0;
 
+    voice = MAX_CMS_CHANNELS;
+    for(i=0; i<MAX_CMS_CHANNELS; i++)
+    {
+      	if(cms_synth[i].note==note)
+      		{
+        		voice = i;
+        		break;
+      		}
+    }
+
+
+    // We run out of voices, ignore note on command
+    if(voice==MAX_CMS_CHANNELS)
+  	{
+    		return;
+  	}
+
+    		cmsNoteOff(voice);
+		cms_synth[voice].note = 0;
   }
   else if (commandMSB == 0x90) //Note on
   {
@@ -631,18 +650,49 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
 	octave = (note / 12) - 1; //Some fancy math to get the correct octave
   	noteVal = note - ((octave + 1) * 12); //More fancy math to get the correct note
 
-	cmsSound(midiChannel,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
+        voice = MAX_CMS_CHANNELS;
+    	for(i=0; i<MAX_CMS_CHANNELS; i++)
+    	{
+      		if(cms_synth[i].note==0)
+      		{
+        		voice = i;
+        		break;
+      		}
+    	}
 
-	cms_synth[midiChannel].enabled = 1;
-	cms_synth[midiChannel].note = note-1;
-	cms_synth[midiChannel].volume = velo;
-	
-      //cmsFreq(midiChannel,(440 / 32) * pow(2, ((note - 9) / 12)),atten[velo]);
+
+  	// We run out of voices, ignore note on command
+  	if(voice==MAX_CMS_CHANNELS)
+  	{
+    		return;
+  	}
+
+	cmsSound(voice,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
+
+	cms_synth[voice].note = note-1;
+	cms_synth[voice].volume = velo;
     }
     else if (velo == 0)
 	{
-    		cmsNoteOff(midiChannel);
-		cms_synth[midiChannel].enabled = 0;
+        voice = MAX_CMS_CHANNELS;
+    	for(i=0; i<MAX_CMS_CHANNELS; i++)
+    	{
+      		if(cms_synth[i].note==note)
+      		{
+        		voice = i;
+        		break;
+      		}
+    	}
+
+
+  	// We run out of voices, ignore note on command
+  	if(voice==MAX_CMS_CHANNELS)
+  	{
+    		return;
+  	}
+
+    		cmsNoteOff(voice);
+		cms_synth[voice].note = 0;
 	}
   }
   else if (commandMSB == 0xA0) // Key pressure
@@ -656,11 +706,11 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     Bit8u value = msg[2];
     
     //if (controller == 0x01) setDetune(value);
-    if (controller == 0x07) 
-	{
-		cmsSetVolume(midiChannel,atten[value],atten[value]);
-		cms_synth[midiChannel].volume = value;
-	}
+//    if (controller == 0x07) 
+//	{
+//		cmsSetVolume(midiChannel,atten[value],atten[value]);
+//		cms_synth[midiChannel].volume = value;
+//	}
   }
   else if (commandMSB == 0xC0) // Program change
   {
@@ -678,7 +728,7 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
   
 /*
   for (i=0;i<MAX_CMS_CHANNELS;i++) 
-    if (cms_synth[i].enabled != 0)
+    if (cms_synth[i].note != 0)
 	{
 		noteVal = cms_synth[i].volume-1;
 		if (noteVal != 0)
@@ -690,7 +740,7 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
 			{
     				cmsNoteOff(i);
 				cms_synth[i].volume = 0;
-				cms_synth[i].enabled = 0;
+				cms_synth[i].note = 0;
 			}
 	}
 */
