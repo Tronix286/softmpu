@@ -443,7 +443,40 @@ Init:           ; Ensure ds=cs
                 int             021h
                 mov             dx,OFFSET MPUIRQDisabled
                 int             021h
-@@NoSBMIDI:     cmp             es:DelaySysex,0
+
+@@NoSBMIDI:     ; CMS / Game Blaster detection
+		call 		DetectCMS
+		jnc		@@CMSOk
+
+                mov             ah,9
+		mov             dx,OFFSET CMSError
+		int             021h
+		jmp             Terminate
+@@CMSOk:
+		mov             bx,es:CMSPortAddr
+		mov             ax,bx
+		shr             ax,8
+		call            NumToChar
+		mov             CMSPortNum,al
+		mov             ax,bx
+		shr             ax,4
+		and             al,0Fh
+		call            NumToChar
+		mov             CMSPortNum+1,al
+		mov             ax,bx
+		and             al,0Fh
+		call            NumToChar
+		mov             CMSPortNum+2,al
+
+		mov             ah,9
+		mov             dx,OFFSET CMSSuccessStart
+		int             021h
+		mov             dx,OFFSET CMSPortNum
+		int             021h
+		mov             dx,OFFSET CMSSuccessEnd
+		int             021h
+
+ 		cmp             es:DelaySysex,0
                 je              @@NoDelay
                 mov             dx,OFFSET DelaysEnabled
                 int             021h                    ; Print sysex delay message

@@ -137,7 +137,7 @@ Start:          push            es
 		mov             es,ax                   ; Copy cs->es for var access from init
 		jmp             FAR PTR EMMErr          ; Fail
 
-@@InitSoftMPU:  INVOKE          MPU401_Init,QPIEntry,SBPortAddr,SBIRQ,MPUDataPortAddr,SerialPortAddr,OutMode,DelaySysex,FakeAllNotesOff
+@@InitSoftMPU:  INVOKE          MPU401_Init,QPIEntry,CMSPortAddr,SBPortAddr,SBIRQ,MPUDataPortAddr,SerialPortAddr,OutMode,DelaySysex,FakeAllNotesOff
 		push            es
 		mov             ax,cs
 		mov             es,ax                   ; Copy cs->es for var access from init

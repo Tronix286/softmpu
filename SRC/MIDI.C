@@ -230,7 +230,7 @@ void _fastcall cmsNull(void)
 */
 _asm
     {
-	add   dx,220h // FIXME! CMSPortAddr
+	add   dx,midi.cmsport // FIXME! CMSPortAddr
 	mov   cx,20h
 	xor   ax,ax
 loop_nul:           // null all 20 registers 
@@ -274,7 +274,7 @@ _asm
 		xor   bh,bh
 		mov   bl,voice
 
-		mov   dx,220h	// FIXME !!!
+		mov   dx,midi.cmsport	// FIXME !!!
 
 		mov   bl,ChanReg[bx]	; bl = true channel (0 - 5)
 
@@ -330,7 +330,7 @@ _asm
 		xor   bh,bh
 		mov   bl,voice
 		
-		mov   dx,220h	// FIXME !!!
+		mov   dx,midi.cmsport	// FIXME !!!
 		cmp   bl,06h		; check channel num > 5?
 		jl    setVol	; yes - set port = port + 2
 		add   dx,2
@@ -354,7 +354,7 @@ _asm
 		xor   bh,bh
 		mov   bl,voice
 		
-		mov   dx,220h	// FIXME !!!
+		mov   dx,midi.cmsport	// FIXME !!!
 		cmp   bl,06h		; check channel num > 5?
 		jl    setOctave	; yes - set port = port + 2
 		add   dx,2
@@ -960,7 +960,7 @@ bool MIDI_Available(void)  {
 }
 
 /* SOFTMPU: Initialisation */
-void MIDI_Init(Bitu mpuport,Bitu sbport,Bitu serialport,OutputMode outputmode,bool delaysysex,bool fakeallnotesoff){
+void MIDI_Init(Bitu mpuport,Bitu cmsport,Bitu sbport,Bitu serialport,OutputMode outputmode,bool delaysysex,bool fakeallnotesoff){
         Bitu i; /* SOFTMPU */
 	midi.sysex.delay = 0;
 	midi.sysex.start = 0;
@@ -972,6 +972,7 @@ void MIDI_Init(Bitu mpuport,Bitu sbport,Bitu serialport,OutputMode outputmode,bo
 		/*LOG_MSG("MIDI:Using delayed SysEx processing");*/ /* SOFTMPU */
 	}
 	midi.mpuport=mpuport;
+        midi.cmsport=cmsport;
         midi.sbport=sbport;
         midi.serialport=serialport;
 	midi.status=0x00;

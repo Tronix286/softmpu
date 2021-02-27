@@ -39,7 +39,7 @@ QEMMInfo		TYPEDEF		@tag_0
 @proto_0		TYPEDEF		PROTO C :bool
 PIC_Update		PROTO		@proto_0
 
-@proto_1		TYPEDEF		PROTO C :FAR PTR , :Bitu, :Bitu, :Bitu, :Bitu, :OutputMode, :bool, :bool
+@proto_1		TYPEDEF		PROTO C :FAR PTR , :Bitu, :Bitu, :Bitu, :Bitu, :Bitu, :OutputMode, :bool, :bool
 MPU401_Init		PROTO		@proto_1
 
 @proto_2		TYPEDEF		PROTO C :bool

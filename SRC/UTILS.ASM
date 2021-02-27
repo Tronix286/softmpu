@@ -414,7 +414,9 @@ DetectCMS:
     ;-----------------------------
 CMS_TEST_CODE            EQU         0C6H
 
-       MOV    DX,es:CMSPortAddr        ; get default i/o addx
+       MOV    DX,210h		       ; start detect from port 210h 
+
+PROBE_IO:
        ADD    DL,6                     ; write the test code to
        MOV    AL,CMS_TEST_CODE         ;   output port 2x6H
        OUT    DX,AL                    ; ...
@@ -435,8 +437,14 @@ CMS_TEST_CODE            EQU         0C6H
        CMP    AL,NOT CMS_TEST_CODE     ; the same data ?
        JNE    CARD10                   ; no
 
-       mov ax,1
-       retn
+       SUB    DX,10		       ; restore true base adrr (2xAh - 10 = DX)
+       MOV    es:CMSPortAddr,dx	       ; save current port
+       CLC			       ; success
+       RET
 CARD10:
-       xor ax,ax
-       retn
+       
+       ADD    DX,6		       ; next true base adrr (2xAh + 6 = DX)
+       CMP    DX,270h                  ; port < 270h ?
+       JNE    PROBE_IO
+       STC			       ; failed
+       RET

@@ -43,6 +43,12 @@ Header          DB              0DAh
 NoEMM           DB              '! Error: EMM386 4.46+ or QEMM 7.03+ not detected',0Dh,0Ah,'$'
 EMMError        DB              '! Error: Port trap failed. Please submit a bug report',0Dh,0Ah,'$'
 LoadedError     DB              '! Error: SoftMPU is already loaded',0Dh,0Ah,'$'
+
+CMSError        DB              '! Error: CMS / Game Blaster not detected',0Dh,0Ah,'$'
+CMSSuccessStart DB              0FBh,' CMS / Game Blaster detected at port ','$'
+CMSSuccessEnd   DB              0Dh,0Ah,'$'
+CMSPortNum      DB              '   ','$'
+
 SBErrorStart    DB              '! Error: Sound Blaster not detected at port ','$'
 SBErrorMid      DB              ' IRQ ','$'
 SBErrorEnd      DB              0Dh,0Ah,'$'
