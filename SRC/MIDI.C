@@ -59,7 +59,7 @@ typedef int Bits;
 #define MAX_TRACKED_CHANNELS 16
 #define MAX_TRACKED_NOTES 8
 
-#define MAX_CMS_CHANNELS 15
+#define MAX_CMS_CHANNELS 12
 
 static char* MIDI_welcome_msg = "\xf0\x41\x10\x16\x12\x20\x00\x00    SoftMPU v1.9    \x24\xf7"; /* SOFTMPU */
 
@@ -122,10 +122,10 @@ static Bit8u atten[128] = {
         };
         	 
 // Logic channel - first chip/second chip
-static Bit8u ChanReg[15] =  {000,001,002,003,004,005,000,001,002,003,004,005};
+static Bit8u ChanReg[12] =  {000,001,002,003,004,005,000,001,002,003,004,005};
 
 // Set octave command
-static Bit8u OctavReg[15] = {0x10,0x10,0x11,0x11,0x12,0x12,0x10,0x10,0x11,0x11,0x12,0x12};
+static Bit8u OctavReg[12] = {0x10,0x10,0x11,0x11,0x12,0x12,0x10,0x10,0x11,0x11,0x12,0x12};
 
 /* SOFTMPU: Note tracking for RA-50 */
 typedef struct {
@@ -165,7 +165,7 @@ typedef struct {
 
 mid_channel cms_synth[MAX_CMS_CHANNELS];	// CMS synth
 
-Bitu CmsOctaveStore[11];
+Bitu CmsOctaveStore[12];
 
 Bit8u ChanEnableReg[2] = {0,0};
 
@@ -706,11 +706,15 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     Bit8u value = msg[2];
     
     //if (controller == 0x01) setDetune(value);
-//    if (controller == 0x07) 
-//	{
-//		cmsSetVolume(midiChannel,atten[value],atten[value]);
-//		cms_synth[midiChannel].volume = value;
-//	}
+    if (controller == 0x07) 
+    {
+  		for (i=0;i<MAX_CMS_CHANNELS;i++) 
+    		  if (cms_synth[i].note != 0)
+		 	{
+				cmsSetVolume(i,atten[value],atten[value]);
+				cms_synth[i].volume = value;
+		 	}
+    }
   }
   else if (commandMSB == 0xC0) // Program change
   {
