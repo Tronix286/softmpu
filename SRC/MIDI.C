@@ -61,6 +61,8 @@ typedef int Bits;
 
 #define MAX_CMS_CHANNELS 12
 
+#define DEFAULT_VOLUME 127
+
 static char* MIDI_welcome_msg = "\xf0\x41\x10\x16\x12\x20\x00\x00    SoftMPU v1.9    \x24\xf7"; /* SOFTMPU */
 
 static Bit8u MIDI_note_off[3] = { 0x80,0x00,0x00 }; /* SOFTMPU */
@@ -121,6 +123,9 @@ static Bit8u atten[128] = {
         	 15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,
         };
         	 
+// The 12 note-within-an-octave values for the SAA1099, starting at B
+static Bit8u noteAdr[12] = {5, 32, 60, 85, 110, 132, 153, 173, 192, 210, 227, 243}; 
+
 // Logic channel - first chip/second chip
 static Bit8u ChanReg[12] =  {000,001,002,003,004,005,000,001,002,003,004,005};
 
@@ -171,6 +176,9 @@ Bit8u ChanEnableReg[2] = {0,0};
 
 /* SOFTMPU: Sysex delay is decremented from PIC_Update */
 Bitu MIDI_sysex_delay;
+
+// Default synth volume
+Bit8u MasterVolume;
 
 /* SOFTMPU: Also used by MPU401_ReadStatus */
 OutputMode MIDI_output_mode;
@@ -265,6 +273,7 @@ _asm
                 cms_synth[i].note=0;
                 cms_synth[i].volume=0;
         }
+	MasterVolume = DEFAULT_VOLUME;
 }
 
 void cmsNoteOff(Bit8u voice)
@@ -338,7 +347,6 @@ setVol:
 		mov   bl,ChanReg[bx]	; bx = true channel (0 - 5)
 		mov   al,byte ptr amplitudeLeft
 		mov   ah,byte ptr amplitudeRight
-		;and   al,0Fh
 		mov   cl,4
 		shl   ah,cl
 		or    al,ah
@@ -604,7 +612,6 @@ static void PlayMsg_Serial(Bit8u* msg,Bitu len)
 
 static void PlayMsg_CMS(Bit8u* msg,Bitu len)
 {
-  Bit8u noteAdr[] = {5, 32, 60, 85, 110, 132, 153, 173, 192, 210, 227, 243}; // The 12 note-within-an-octave values for the SAA1099, starting at B
   Bit8u command = msg[0];
   Bit8u commandMSB  = command & 0xF0;
   Bit8u midiChannel = command & 0x0F;
@@ -667,10 +674,13 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     		return;
   	}
 
-	cmsSound(voice,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
-
 	cms_synth[voice].note = note-1;
 	cms_synth[voice].volume = velo;
+
+	velo = (MasterVolume*velo)/127;
+	
+	cmsSound(voice,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
+
     }
     else if (velo == 0)
 	{
@@ -706,13 +716,26 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     Bit8u value = msg[2];
     
     //if (controller == 0x01) setDetune(value);
-    if (controller == 0x07) 
+    if (controller == 0x07) //set main volume
     {
+		MasterVolume = value;
+
   		for (i=0;i<MAX_CMS_CHANNELS;i++) 
     		  if (cms_synth[i].note != 0)
 		 	{
 				cmsSetVolume(i,atten[value],atten[value]);
 				cms_synth[i].volume = value;
+		 	}
+    }
+    else if ((controller==121) || (controller==123)) // All Sound/Notes Off
+    {
+		if (controller==121) MasterVolume = DEFAULT_VOLUME;
+
+  		for (i=0;i<MAX_CMS_CHANNELS;i++) 
+    		  if (cms_synth[i].note != 0)
+		 	{
+    				cmsNoteOff(i);
+				cms_synth[i].note = 0;
 		 	}
     }
   }

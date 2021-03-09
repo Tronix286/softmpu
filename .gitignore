@@ -1,2 +1,4 @@
 *.obj
 *.map
+*.cod
+*.lst
