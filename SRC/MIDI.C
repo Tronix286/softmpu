@@ -164,9 +164,12 @@ static struct {
 } midi;
 
 typedef struct {
-        Bit8u note;
-        Bit8u volume;
+	Bit8u ch;		//channel
+        Bit8u note;		//note
+        Bit8u priority;		//note priority
 } mid_channel;
+
+Bit8u chVolumes[MAX_TRACKED_CHANNELS];
 
 mid_channel cms_synth[MAX_CMS_CHANNELS];	// CMS synth
 
@@ -177,8 +180,8 @@ Bit8u ChanEnableReg[2] = {0,0};
 /* SOFTMPU: Sysex delay is decremented from PIC_Update */
 Bitu MIDI_sysex_delay;
 
-// Default synth volume
-Bit8u MasterVolume;
+// Note priority
+Bit8u NotePriority;
 
 /* SOFTMPU: Also used by MPU401_ReadStatus */
 OutputMode MIDI_output_mode;
@@ -270,10 +273,15 @@ _asm
 	ChanEnableReg[1]=0;
         for (i=0;i<MAX_CMS_CHANNELS;i++)
         {
+                cms_synth[i].ch=0;
                 cms_synth[i].note=0;
-                cms_synth[i].volume=0;
+                cms_synth[i].priority=0;
         }
-	MasterVolume = DEFAULT_VOLUME;
+        for (i=0;i<MAX_TRACKED_CHANNELS;i++)
+        {
+		chVolumes[i] = DEFAULT_VOLUME;
+	}
+	NotePriority = 0;
 }
 
 void cmsNoteOff(Bit8u voice)
@@ -636,14 +644,23 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     }
 
 
-    // We run out of voices, ignore note on command
+    // We run out of voices, ignore note off command
     if(voice==MAX_CMS_CHANNELS)
   	{
     		return;
   	}
 
-    		cmsNoteOff(voice);
-		cms_synth[voice].note = 0;
+    // decrease priority for all notes greater than current
+    for (i=0; i<MAX_CMS_CHANNELS; i++)
+	if (cms_synth[i].priority > cms_synth[voice].priority )
+		cms_synth[i].priority = cms_synth[i].priority - 1;
+
+    
+    if (NotePriority != 0) NotePriority--;
+
+    cmsNoteOff(voice);
+    cms_synth[voice].note = 0;
+    cms_synth[voice].priority = 0;
   }
   else if (commandMSB == 0x90) //Note on
   {
@@ -657,6 +674,8 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
 	octave = (note / 12) - 1; //Some fancy math to get the correct octave
   	noteVal = note - ((octave + 1) * 12); //More fancy math to get the correct note
 
+	NotePriority++;
+
         voice = MAX_CMS_CHANNELS;
     	for(i=0; i<MAX_CMS_CHANNELS; i++)
     	{
@@ -668,21 +687,43 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     	}
 
 
-  	// We run out of voices, ignore note on command
+  	// We run out of voices, find low priority voice
   	if(voice==MAX_CMS_CHANNELS)
   	{
-    		return;
+		Bit8u min_prior = cms_synth[0].priority;
+
+		// find note with min prioryty
+		voice = 0;
+    		for (i=1; i<MAX_CMS_CHANNELS; i++)
+		  if (cms_synth[i].priority < min_prior) 
+		  {
+			voice = i;
+                        min_prior = cms_synth[i].priority;
+                  }
+
+		// decrease all notes priority by one
+    		for (i=0; i<MAX_CMS_CHANNELS; i++)
+		  if (cms_synth[i].priority != 0)
+			cms_synth[i].priority = cms_synth[i].priority - 1;
+
+		// decrease current priority
+		if (NotePriority != 0) NotePriority--;
+
   	}
 
+	cms_synth[voice].ch = midiChannel;
 	cms_synth[voice].note = note-1;
-	cms_synth[voice].volume = velo;
+	cms_synth[voice].priority = NotePriority;
 
-	velo = (MasterVolume*velo)/127;
+	
+	velo = (chVolumes[midiChannel]*velo)/127;
 	
 	cmsSound(voice,noteAdr[noteVal],octave,atten[velo],atten[velo]);  	
 
+	//cms_synth[voice].volume = velo;
+
     }
-    else if (velo == 0)
+    else if (velo == 0) //Turn Off note 
 	{
         voice = MAX_CMS_CHANNELS;
     	for(i=0; i<MAX_CMS_CHANNELS; i++)
@@ -695,14 +736,22 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     	}
 
 
-  	// We run out of voices, ignore note on command
+  	// We run out of voices, ignore note off command
   	if(voice==MAX_CMS_CHANNELS)
   	{
     		return;
   	}
 
-    		cmsNoteOff(voice);
-		cms_synth[voice].note = 0;
+        // decrease priority for all notes greater than current
+    	for (i=0; i<MAX_CMS_CHANNELS; i++)
+		if (cms_synth[i].priority > cms_synth[voice].priority )
+			cms_synth[i].priority = cms_synth[i].priority - 1;
+
+        if (NotePriority != 0) NotePriority--;
+
+    	cmsNoteOff(voice);
+	cms_synth[voice].note = 0;
+	cms_synth[voice].priority = 0;
 	}
   }
   else if (commandMSB == 0xA0) // Key pressure
@@ -718,24 +767,30 @@ static void PlayMsg_CMS(Bit8u* msg,Bitu len)
     //if (controller == 0x01) setDetune(value);
     if (controller == 0x07) //set main volume
     {
-		MasterVolume = value;
+		//MasterVolume = value;
+		chVolumes[midiChannel] = value;
 
   		for (i=0;i<MAX_CMS_CHANNELS;i++) 
-    		  if (cms_synth[i].note != 0)
+    		  if ((cms_synth[i].note != 0) && (cms_synth[i].ch == midiChannel))
 		 	{
 				cmsSetVolume(i,atten[value],atten[value]);
-				cms_synth[i].volume = value;
+				//cms_synth[i].volume = value;
 		 	}
     }
     else if ((controller==121) || (controller==123)) // All Sound/Notes Off
     {
-		if (controller==121) MasterVolume = DEFAULT_VOLUME;
+		if (controller==121) 
+		{
+			chVolumes[midiChannel] = DEFAULT_VOLUME;
+			NotePriority = 0;
+		}
 
   		for (i=0;i<MAX_CMS_CHANNELS;i++) 
     		  if (cms_synth[i].note != 0)
 		 	{
-    				cmsNoteOff(i);
-				cms_synth[i].note = 0;
+    			  cmsNoteOff(i);
+			  cms_synth[i].note = 0;
+			  cms_synth[i].priority = 0;			  
 		 	}
     }
   }
